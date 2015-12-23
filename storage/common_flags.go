@@ -28,3 +28,7 @@ var ArgDbIsSecure = flag.Bool("storage_driver_secure", false, "use secure connec
 var ArgDbBufferDuration = flag.Duration("storage_driver_buffer_duration", 60*time.Second, "Writes in the storage driver will be buffered for this duration, and committed to the non memory backends as a single transaction")
 var ArgKafkaBrokerList = flag.String("storage_driver_kafka_broker_list", "localhost:9092", "kafka broker(s) csv")
 var ArgKafkaTopic = flag.String("storage_driver_kafka_topic", "stats", "kafka topic")
+var ArgKafkaCertFile = flag.String("storage_driver_kafka_certificate_file", "false", "The optional certificate file for client authentication")
+var ArgKafkaKeyFile = flag.String("storage_driver_kafka_key_file", "false", "The optional key file for client authentication")
+var ArgKafkaCaFile = flag.String("storage_driver_kafka_ca_file", "false", "The optional certificate authority file for TLS client authentication")
+var ArgKafkaVerifySsl = flag.Bool("storage_driver_kafka_verify_ssl", false, "Optional verify ssl certificates chain")

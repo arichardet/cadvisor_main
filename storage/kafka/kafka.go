@@ -15,8 +15,11 @@
 package kafka
 
 import (
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"strings"
 
@@ -33,6 +36,10 @@ type kafkaStorage struct {
 	producer    kafka.SyncProducer
 	topic       string
 	machineName string
+	certFile    string
+	keyFile     string
+	caFile      string
+	verifySsl   bool
 }
 
 type detailSpec struct {
@@ -92,16 +99,29 @@ func new() (storage.StorageDriver, error) {
 		machineName,
 		*storage.ArgKafkaBrokerList,
 		*storage.ArgKafkaTopic,
+		*storage.ArgKafkaCertFile,
+		*storage.ArgKafkaKeyFile,
+		*storage.ArgKafkaCaFile,
+		*storage.ArgKafkaVerifySsl,
 	)
 }
 
 func newStorage(machineName,
 	brokers,
-	topic string,
+	topic,
+	certFile,
+	keyFile,
+	caFile string,
+	verifySsl bool,
 ) (storage.StorageDriver, error) {
 	config := kafka.NewConfig()
 	config.Producer.RequiredAcks = kafka.WaitForAll
 	config.Producer.Retry.Max = 10
+	tlsConfig := createTlsConfiguration(certFile, keyFile, caFile, verifySsl)
+	if tlsConfig != nil {
+		config.Net.TLS.Config = tlsConfig
+		config.Net.TLS.Enable = true
+	}
 
 	brokerList := strings.Split(brokers, ",")
 	fmt.Println("Kafka brokers:", strings.Join(brokerList, ", "))
@@ -115,6 +135,40 @@ func newStorage(machineName,
 		producer:    producer,
 		topic:       topic,
 		machineName: machineName,
+		certFile:    certFile,
+		keyFile:     keyFile,
+		caFile:      caFile,
+		verifySsl:   verifySsl,
 	}
 	return ret, nil
+}
+
+func createTlsConfiguration(certFile,
+	keyFile,
+	caFile string,
+	verifySsl bool,
+) (t *tls.Config) {
+
+	if certFile != "false" && keyFile != "false" && caFile != "false" {
+		cert, err := tls.LoadX509KeyPair(certFile, keyFile)
+		if err != nil {
+			fmt.Println(err)
+		}
+
+		caCert, err := ioutil.ReadFile(caFile)
+		if err != nil {
+			fmt.Println(err)
+		}
+
+		caCertPool := x509.NewCertPool()
+		caCertPool.AppendCertsFromPEM(caCert)
+
+		t = &tls.Config{
+			Certificates:       []tls.Certificate{cert},
+			RootCAs:            caCertPool,
+			InsecureSkipVerify: verifySsl,
+		}
+	}
+	// will be nil by default if nothing is provided
+	return t
 }
