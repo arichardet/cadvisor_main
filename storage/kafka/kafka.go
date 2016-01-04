@@ -36,25 +36,33 @@ type kafkaStorage struct {
 }
 
 type detailSpec struct {
-	Timestamp      int64                `json:"timestamp"`
-	MachineName    string               `json:"machine_name,omitempty"`
-	ContainerName  string               `json:"container_Name,omitempty"`
-	ContainerStats *info.ContainerStats `json:"container_stats,omitempty"`
+	Timestamp       int64                `json:"timestamp"`
+	MachineName     string               `json:"machine_name,omitempty"`
+	ContainerName   string               `json:"container_Name,omitempty"`
+	ContainerId     string               `json:"container_Id,omitempty"`
+	ContainerLabels map[string]string    `json:"container_labels,omitempty"`
+	ContainerStats  *info.ContainerStats `json:"container_stats,omitempty"`
 }
 
 func (driver *kafkaStorage) containerStatsAndDefaultValues(ref info.ContainerReference, stats *info.ContainerStats) *detailSpec {
 	timestamp := stats.Timestamp.UnixNano() / 1E3
 	var containerName string
+	containerId := ref.Id
+	containerLabels := ref.Labels
+
 	if len(ref.Aliases) > 0 {
 		containerName = ref.Aliases[0]
 	} else {
 		containerName = ref.Name
 	}
+
 	detail := &detailSpec{
-		Timestamp:      timestamp,
-		MachineName:    driver.machineName,
-		ContainerName:  containerName,
-		ContainerStats: stats,
+		Timestamp:       timestamp,
+		MachineName:     driver.machineName,
+		ContainerName:   containerName,
+		ContainerId:     containerId,
+		ContainerLabels: containerLabels,
+		ContainerStats:  stats,
 	}
 	return detail
 }
