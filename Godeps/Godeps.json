@@ -187,6 +187,11 @@
 			"ImportPath": "gopkg.in/olivere/elastic.v2",
 			"Comment": "v2.0.12",
 			"Rev": "3cfe88295d20b6299bd935131fc0fd17316405ad"
+		},
+		{
+			"ImportPath": "github.com/shopify/sarama",
+			"Comment": "v1.7.0",
+			"Rev": "87ec8d76e89cc002ff5673ee7598ae1db2f32424"
 		}
 	]
 }
