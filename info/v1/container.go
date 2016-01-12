@@ -66,13 +66,13 @@ type ContainerSpec struct {
 	Image string `json:"image,omitempty"`
 
 	// The ID of the container
-	ContainerId string `json:"container_id,omitempty"`
+	ContainerId string `json:"container_id"`
 }
 
 // Container reference contains enough information to uniquely identify a container
 type ContainerReference struct {
 	// The container id
-	Id string `json:"id"`
+	Id string `json:"id,omitempty"`
 
 	// The absolute name of the container. This is unique on the machine.
 	Name string `json:"name"`

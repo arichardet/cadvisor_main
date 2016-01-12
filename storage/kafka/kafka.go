@@ -1,4 +1,4 @@
-// Copyright 2015 Google Inc. All Rights Reserved.
+// Copyright 2016 Google Inc. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,51 +16,54 @@ package kafka
 
 import (
 	"encoding/json"
-	"fmt"
+	"flag"
 	"os"
 	"strings"
+	"time"
 
-	kafka "github.com/Shopify/sarama"
 	info "github.com/google/cadvisor/info/v1"
 	storage "github.com/google/cadvisor/storage"
+	containerUtil "github.com/google/cadvisor/utils/container"
+
+	kafka "github.com/Shopify/sarama"
+	"github.com/golang/glog"
 )
 
 func init() {
 	storage.RegisterStorageDriver("kafka", new)
 }
 
+var (
+	brokers = flag.String("storage_driver_kafka_broker_list", "localhost:9092", "kafka broker(s) csv")
+	topic   = flag.String("storage_driver_kafka_topic", "stats", "kafka topic")
+)
+
 type kafkaStorage struct {
-	producer    kafka.SyncProducer
+	producer    kafka.AsyncProducer
 	topic       string
 	machineName string
 }
 
 type detailSpec struct {
-	Timestamp       int64                `json:"timestamp"`
+	Timestamp       time.Time            `json:"timestamp"`
 	MachineName     string               `json:"machine_name,omitempty"`
 	ContainerName   string               `json:"container_Name,omitempty"`
-	ContainerId     string               `json:"container_Id,omitempty"`
+	ContainerID     string               `json:"container_Id,omitempty"`
 	ContainerLabels map[string]string    `json:"container_labels,omitempty"`
 	ContainerStats  *info.ContainerStats `json:"container_stats,omitempty"`
 }
 
-func (driver *kafkaStorage) containerStatsAndDefaultValues(ref info.ContainerReference, stats *info.ContainerStats) *detailSpec {
-	timestamp := stats.Timestamp.UnixNano() / 1E3
-	var containerName string
-	containerId := ref.Id
+func (driver *kafkaStorage) infoToDetailSpec(ref info.ContainerReference, stats *info.ContainerStats) *detailSpec {
+	timestamp := time.Now()
+	containerID := ref.Id
 	containerLabels := ref.Labels
-
-	if len(ref.Aliases) > 0 {
-		containerName = ref.Aliases[0]
-	} else {
-		containerName = ref.Name
-	}
+	containerName := containerUtil.GetPreferredName(ref)
 
 	detail := &detailSpec{
 		Timestamp:       timestamp,
 		MachineName:     driver.machineName,
 		ContainerName:   containerName,
-		ContainerId:     containerId,
+		ContainerID:     containerID,
 		ContainerLabels: containerLabels,
 		ContainerStats:  stats,
 	}
@@ -68,20 +71,15 @@ func (driver *kafkaStorage) containerStatsAndDefaultValues(ref info.ContainerRef
 }
 
 func (driver *kafkaStorage) AddStats(ref info.ContainerReference, stats *info.ContainerStats) error {
-	detail := driver.containerStatsAndDefaultValues(ref, stats)
-	b, _ := json.Marshal(detail)
-	msg := &kafka.ProducerMessage{
+	detail := driver.infoToDetailSpec(ref, stats)
+	b, err := json.Marshal(detail)
+	if err != nil {
+		glog.Errorf("Error Marshalling JSON: %v", err)
+	}
+
+	driver.producer.Input() <- &kafka.ProducerMessage{
 		Topic: driver.topic,
 		Value: kafka.StringEncoder(b),
-	}
-
-	_, _, err := driver.producer.SendMessage(msg)
-	if err != nil {
-		fmt.Println("kafka storage error:", err)
-	}
-
-	if stats == nil {
-		return nil
 	}
 
 	return nil
@@ -98,30 +96,25 @@ func new() (storage.StorageDriver, error) {
 	}
 	return newStorage(
 		machineName,
-		*storage.ArgKafkaBrokerList,
-		*storage.ArgKafkaTopic,
 	)
 }
 
-func newStorage(machineName,
-	brokers,
-	topic string,
-) (storage.StorageDriver, error) {
+func newStorage(machineName string) (storage.StorageDriver, error) {
 	config := kafka.NewConfig()
 	config.Producer.RequiredAcks = kafka.WaitForAll
 	config.Producer.Retry.Max = 10
 
-	brokerList := strings.Split(brokers, ",")
-	fmt.Println("Kafka brokers:", strings.Join(brokerList, ", "))
+	brokerList := strings.Split(*brokers, ",")
+	glog.V(4).Infof("Kafka brokers:%q", brokers)
 
-	producer, err := kafka.NewSyncProducer(brokerList, config)
+	producer, err := kafka.NewAsyncProducer(brokerList, config)
 
 	if err != nil {
 		return nil, err
 	}
 	ret := &kafkaStorage{
 		producer:    producer,
-		topic:       topic,
+		topic:       *topic,
 		machineName: machineName,
 	}
 	return ret, nil
