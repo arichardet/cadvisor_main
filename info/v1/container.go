@@ -66,9 +66,6 @@ type ContainerSpec struct {
 
 	// Image name used for this container.
 	Image string `json:"image,omitempty"`
-
-	// The ID of the container
-	ContainerId string `json:"container_id"`
 }
 
 // Container reference contains enough information to uniquely identify a container

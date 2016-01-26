@@ -23,7 +23,7 @@ import (
 
 	info "github.com/google/cadvisor/info/v1"
 	storage "github.com/google/cadvisor/storage"
-	containerUtil "github.com/google/cadvisor/utils/container"
+	container "github.com/google/cadvisor/utils/container"
 
 	kafka "github.com/Shopify/sarama"
 	"github.com/golang/glog"
@@ -57,7 +57,7 @@ func (driver *kafkaStorage) infoToDetailSpec(ref info.ContainerReference, stats 
 	timestamp := time.Now()
 	containerID := ref.Id
 	containerLabels := ref.Labels
-	containerName := containerUtil.GetPreferredName(ref)
+	containerName := container.GetPreferredName(ref)
 
 	detail := &detailSpec{
 		Timestamp:       timestamp,
@@ -73,16 +73,13 @@ func (driver *kafkaStorage) infoToDetailSpec(ref info.ContainerReference, stats 
 func (driver *kafkaStorage) AddStats(ref info.ContainerReference, stats *info.ContainerStats) error {
 	detail := driver.infoToDetailSpec(ref, stats)
 	b, err := json.Marshal(detail)
-	if err != nil {
-		glog.Errorf("Error Marshalling JSON: %v", err)
-	}
 
 	driver.producer.Input() <- &kafka.ProducerMessage{
 		Topic: driver.topic,
 		Value: kafka.StringEncoder(b),
 	}
 
-	return nil
+	return err
 }
 
 func (self *kafkaStorage) Close() error {
@@ -94,21 +91,17 @@ func new() (storage.StorageDriver, error) {
 	if err != nil {
 		return nil, err
 	}
-	return newStorage(
-		machineName,
-	)
+	return newStorage(machineName)
 }
 
 func newStorage(machineName string) (storage.StorageDriver, error) {
 	config := kafka.NewConfig()
 	config.Producer.RequiredAcks = kafka.WaitForAll
-	config.Producer.Retry.Max = 10
 
 	brokerList := strings.Split(*brokers, ",")
 	glog.V(4).Infof("Kafka brokers:%q", brokers)
 
 	producer, err := kafka.NewAsyncProducer(brokerList, config)
-
 	if err != nil {
 		return nil, err
 	}
